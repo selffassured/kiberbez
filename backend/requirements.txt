@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+databases[postgresql]
+psycopg2-binary
+redis
+python-multipart
+python-dotenv
+qrcode
+cryptography
+opencv-python
+face-recognition
+ultralytics
+pytesseract
+numpy
