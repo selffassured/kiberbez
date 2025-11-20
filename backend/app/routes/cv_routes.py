@@ -21,7 +21,7 @@ async def recognize_meter(image: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# === YOLO детекция кошек и собак ===
+# === YOLO детекция
 @router.post("/api/detect/animals")
 async def detect_animals(image: UploadFile = File(...)):
     """Определяет кошек и собак на изображении"""

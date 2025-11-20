@@ -3,7 +3,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MASTER_KEY_B64 = os.getenv("MASTER_KEY_B64")
 if not MASTER_KEY_B64:
-    # генерируем временный ключ (только dev!). В prod укажи MASTER_KEY_B64 в .env
+    # генерируем временный ключ (только dev!). В prod указать MASTER_KEY_B64 в .env
     import base64, os
     MASTER_KEY_B64 = base64.b64encode(os.urandom(32)).decode()
 
