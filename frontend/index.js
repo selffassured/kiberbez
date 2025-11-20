@@ -1,12 +1,49 @@
+const API_URL = window.API_URL || "http://localhost:8000";
+
 class FileListManager {
   constructor() {
-    this.files = JSON.parse(localStorage.getItem("uploadedFiles")) || [];
+    this.files = [];
     this.container = null;
     this.filteredFiles = [];
     this.currentSearch = "";
     this.currentCategory = "all";
+    this.isLoginMode = true;
     this.init();
   }
+
+  async init() {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => this.onDomReady());
+    } else {
+      this.onDomReady();
+    }
+    await this.fetchFiles();
+    await this.checkAuth();
+  }
+
+
+  async checkAuth() {
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Not logged in");
+      const data = await res.json();
+      this.showLoggedInUser(data.email);
+    } catch (err) {
+    }
+  }
+
+
+  getCategoryFromType(mime) {
+    if (!mime) return "documents";
+
+    if (mime.startsWith("image/")) return "images";
+    if (mime.startsWith("video/")) return "videos";
+
+    return "documents";
+  }
+
 
   highlightText(text, searchTerm) {
     if (!searchTerm.trim()) return text;
@@ -17,144 +54,105 @@ class FileListManager {
     );
   }
 
-  downloadFile(fileId) {
-    console.log(" Попытка скачать файл ID:", fileId);
-    const file = this.files.find((f) => f.id === fileId);
-    if (!file) {
-      console.error(" Файл не найден");
-      return;
-    }
-    if (file.fileObject) {
-      this.downloadFileObject(file.fileObject, file.name);
-    } else {
-      this.createTempDownload(file.name, "Это содержимое файла " + file.name);
+  async fetchFiles() {
+    try {
+      const res = await fetch(`${API_URL}/files`, {
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to fetch files");
+      const data = await res.json();
+      this.files = data.files;
+      this.renderFiles();
+    } catch (err) {
+      console.error("Error fetching files:", err);
     }
   }
 
-  downloadFileObject(fileObject, fileName) {
-    const url = URL.createObjectURL(fileObject);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
+  async uploadFiles(fileList) {
+    const formData = new FormData();
+    for (const file of fileList) {
+      formData.append("files", file);
+    }
+    try {
+      const res = await fetch(`${API_URL}/files/upload`, {
+        method: "POST",
+        body: formData,
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      this.files = data.files;
+      this.renderFiles();
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Upload failed");
+    }
+  }
+
+  async downloadFile(fileToken) {
+    try {
+      const res = await fetch(`${API_URL}/files/${fileToken}/download`, {
+        method: "GET",
+        credentials: "include"
+      });
+
+      if (!res.ok) throw new Error("Download failed");
+
+      const blob = await res.blob();
+
+      const file = this.files.find((f) => f.token === fileToken);
+      if (!file) {
+        console.error("File metadata not found");
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+  } catch (err) {
+    console.error(err);
+    alert("Download failed");
   }
+}
 
-  createTempDownload(fileName, content) {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  init() {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => this.onDomReady());
-    } else {
-      this.onDomReady();
+  async deleteFile(fileToken) {
+    try {
+      const res = await fetch(`${API_URL}/files/${fileToken}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      this.files = this.files.filter((f) => f.token !== fileToken);
+      this.renderFiles();
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed");
     }
   }
 
   onDomReady() {
-    this.checkLoggedInUser();
     this.container = document.getElementById("fileListContainer");
-    if (!this.container) {
-      console.error("❌ Элемент fileListContainer не найден!");
-      this.createContainer();
-      return;
-    }
+    if (!this.container) this.createContainer();
     this.renderFiles();
-    this.autoFindUploadButton();
     this.setupSearch();
-    this.setupLoginModal();
     this.setupCategoryTriggers();
+    this.setupUpload();
+    this.setupLoginModal();
   }
 
-  setupCategoryTriggers() {
-    const triggers = document.querySelectorAll(".category-trigger");
-    triggers.forEach((trigger) => {
-      trigger.addEventListener("click", (e) => {
-        e.preventDefault();
-        const category = trigger.dataset.category;
-        this.filterByCategory(category);
-        this.updateActiveCategoryTrigger(category);
+  setupUpload() {
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      fileInput.addEventListener("change", async (e) => {
+        await this.uploadFiles(e.target.files);
+        e.target.value = "";
       });
-    });
-  }
-
-  updateActiveCategoryTrigger(activeCategory) {
-    const triggers = document.querySelectorAll(".category-trigger");
-    triggers.forEach((trigger) => {
-      if (trigger.dataset.category === activeCategory) {
-        trigger.classList.add("active");
-      } else {
-        trigger.classList.remove("active");
-      }
-    });
-  }
-
-  getFileCategory(file) {
-    const name = file.name.toLowerCase();
-    const imageExtensions = [
-      ".jpg",
-      ".jpeg",
-      ".png",
-      ".gif",
-      ".bmp",
-      ".webp",
-      ".svg",
-    ];
-    const videoExtensions = [
-      ".mp4",
-      ".avi",
-      ".mov",
-      ".mkv",
-      ".webm",
-      ".flv",
-      ".wmv",
-    ];
-    const documentExtensions = [
-      ".pdf",
-      ".doc",
-      ".docx",
-      ".txt",
-      ".rtf",
-      ".xls",
-      ".xlsx",
-      ".ppt",
-      ".pptx",
-      ".zip",
-      ".torrent",
-      ".exe",
-    ];
-
-    if (imageExtensions.some((ext) => name.endsWith(ext))) return "images";
-    if (videoExtensions.some((ext) => name.endsWith(ext))) return "videos";
-    if (documentExtensions.some((ext) => name.endsWith(ext)))
-      return "documents";
-    return "other";
-  }
-
-  filterByCategory(category) {
-    this.currentCategory = category;
-    if (category === "all") {
-      this.filteredFiles = [...this.files];
-    } else {
-      this.filteredFiles = this.files.filter(
-        (file) => this.getFileCategory(file) === category
-      );
-    }
-    if (this.currentSearch.trim()) {
-      this.searchFiles(this.currentSearch);
-    } else {
-      this.renderFilteredFiles();
     }
   }
 
@@ -163,35 +161,56 @@ class FileListManager {
     if (searchInput) {
       searchInput.addEventListener("input", (e) => {
         this.currentSearch = e.target.value;
-        this.searchFiles(this.currentSearch);
+        this.filterFiles();
       });
     }
   }
 
-  searchFiles(searchTerm) {
-    this.currentSearch = searchTerm;
-    let filesToSearch = this.files;
+  setupCategoryTriggers() {
+    const triggers = document.querySelectorAll(".category-trigger");
+    triggers.forEach((trigger) => {
+      trigger.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.currentCategory = trigger.dataset.category;
+        this.updateActiveCategoryTrigger();
+        this.filterFiles();
+      });
+    });
+  }
+
+  updateActiveCategoryTrigger() {
+    const triggers = document.querySelectorAll(".category-trigger");
+    triggers.forEach((trigger) => {
+      if (trigger.dataset.category === this.currentCategory) {
+        trigger.classList.add("active");
+      } else {
+        trigger.classList.remove("active");
+      }
+    });
+  }
+
+  filterFiles() {
+    let filesToFilter = [...this.files];
+
     if (this.currentCategory !== "all") {
-      filesToSearch = this.files.filter(
-        (file) => this.getFileCategory(file) === this.currentCategory
+      filesToFilter = filesToFilter.filter(
+        (f) => this.getCategoryFromType(f.type) === this.currentCategory
       );
     }
-    if (!searchTerm.trim()) {
-      this.filteredFiles = filesToSearch;
-    } else {
-      const term = searchTerm.toLowerCase();
-      this.filteredFiles = filesToSearch
-        .filter((file) => file.name.toLowerCase().includes(term))
-        .map((file) => {
-          const formattedName = this.formatFileName(file.name);
-          const highlighted = this.highlightText(formattedName, searchTerm);
-          return {
-            ...file,
-            displayName: formattedName,
-            highlightedName: highlighted,
-          };
-        });
+    if (this.currentSearch.trim()) {
+      const term = this.currentSearch.toLowerCase();
+      filesToFilter = filesToFilter.filter((f) =>
+        f.filename.toLowerCase().includes(term)
+      );
     }
+
+    this.filteredFiles = filesToFilter;
+    this.renderFilteredFiles();
+  }
+
+
+  renderFiles() {
+    this.filteredFiles = [...this.files];
     this.renderFilteredFiles();
   }
 
@@ -204,33 +223,28 @@ class FileListManager {
       this.container.appendChild(fileListContent);
     }
     fileListContent.innerHTML = "";
-    if (this.filteredFiles.length === 0) {
-      fileListContent.innerHTML = '<div class="no-results"> No found</div>';
+    if (!this.filteredFiles.length) {
+      fileListContent.innerHTML = "<div class='no-results'>No files</div>";
       return;
     }
+
     this.filteredFiles.forEach((file) => {
       const fileElement = document.createElement("div");
       fileElement.className = "file-item";
-      fileElement.setAttribute("data-type", file.type);
       fileElement.innerHTML = `
-                <div class="file-content">
-                    <span class="file-icon">${this.getFileIcon(
-                      file.type
-                    )}</span>
-                    <span class="file-name" title="${file.name}">${
-        file.highlightedName || this.formatFileName(file.name)
-      }</span>
-                    <span class="file-size">${file.size}</span>
-                </div>
-                <div class="file-actions">
-                    <button class="download-btn" onclick="fileListManager.downloadFile(${
-                      file.id
-                    })" title="Download"><img src="img/download.png" width="28"></button>
-                    <button class="delete-btn" onclick="fileListManager.deleteFile(${
-                      file.id
-                    })" title="Delete"><img src="img/delete.png" width="26"></button>
-                </div>
-            `;
+        <div class="file-content">
+          <span class="file-icon">${this.getFileIcon(file.type || "document")}</span>
+          <span class="file-name" title="${file.filename}">${file.filename}</span>
+          <span class="file-size">${this.formatFileSize(file.size)}</span>
+          
+        </div>
+        <div class="file-actions">
+          <button class="download-btn"><img src="img/download.png" width="28"></button>
+          <button class="delete-btn"><img src="img/delete.png" width="26"></button>
+        </div>
+      `;
+      fileElement.querySelector(".download-btn").addEventListener("click", () => this.downloadFile(file.token));
+      fileElement.querySelector(".delete-btn").addEventListener("click", () => this.deleteFile(file.token));
       fileListContent.appendChild(fileElement);
     });
   }
@@ -242,334 +256,123 @@ class FileListManager {
     document.body.appendChild(this.container);
   }
 
-  autoFindUploadButton() {
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      fileInput.addEventListener("change", (e) => this.handleFileUpload(e));
-    } else {
-      this.createFileInput();
-    }
-  }
+  getFileIcon(file_type) {
+    console.log(file_type);
 
-  createFileInput() {
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.id = "autoFileInput";
-    fileInput.multiple = true;
-    fileInput.style.display = "none";
-    fileInput.addEventListener("change", (e) => this.handleFileUpload(e));
-    document.body.appendChild(fileInput);
-    const uploadBtn = document.createElement("button");
-    uploadBtn.textContent = "📁 Выбрать файлы";
-    uploadBtn.style.cssText = `
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 9999;
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        `;
-    uploadBtn.addEventListener("click", () => fileInput.click());
-    document.body.appendChild(uploadBtn);
-  }
+    if (file_type.startsWith("image/")) return "🖼️";
+    if (file_type.startsWith("video/")) return "🎬";
+    if (file_type === "application/pdf") return "📄";
 
-  handleFileUpload(event) {
-    const files = event.target.files;
-    if (files.length > 0) {
-      for (let file of files) {
-        this.addFile(file);
-      }
-      event.target.value = "";
-    }
-  }
-
-  addFile(file) {
-    const fileData = {
-      id: Date.now() + Math.random(),
-      name: file.name,
-      type: this.getFileType(file),
-      size: this.formatFileSize(file.size),
-      uploadDate: new Date().toLocaleString(),
-      category: this.getFileCategory({ name: file.name, type: file.type }),
-    };
-    this.files.push(fileData);
-    this.saveToLocalStorage();
-    if (this.currentCategory !== "all") {
-      this.filterByCategory(this.currentCategory);
-    } else if (this.currentSearch.trim()) {
-      this.searchFiles(this.currentSearch);
-    } else {
-      this.renderFiles();
-    }
-  }
-
-  getFileType(file) {
-    if (file.type.startsWith("image/")) return "image";
-    if (file.type.startsWith("video/")) return "video";
-    if (file.type.includes("pdf")) return "document";
-    return "document";
-  }
-
-  getFileIcon(type) {
-    const icons = {
-      image: "🖼️",
-      video: "🎬",
-      document: "📄",
-    };
-    return icons[type] || "📄";
+    return "📄";
   }
 
   formatFileSize(bytes) {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    if (!bytes || isNaN(bytes)) return "0 B";
+
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+
+    return `${value.toFixed(1)} ${sizes[i]}`;
   }
 
-  deleteFile(fileId) {
-    this.files = this.files.filter((file) => file.id !== fileId);
-    this.saveToLocalStorage();
-    this.renderFilteredFiles();
-    this.renderFiles();
-  }
 
-  renderFiles() {
-    this.filteredFiles = [...this.files];
-    this.renderFilteredFiles();
-  }
-
-  saveToLocalStorage() {
-    localStorage.setItem("uploadedFiles", JSON.stringify(this.files));
-  }
-
-  formatFileName(filename, maxLength = 12) {
-    if (filename.length <= maxLength) return filename;
-    const lastDotIndex = filename.lastIndexOf(".");
-    if (lastDotIndex <= 0) return filename.substring(0, maxLength - 3) + "...";
-    const name = filename.substring(0, lastDotIndex);
-    const extension = filename.substring(lastDotIndex);
-    const availableNameLength = maxLength - 3 - extension.length;
-    if (availableNameLength < 1) return "..." + extension;
-    return name.substring(0, availableNameLength) + "..." + extension;
-  }
 
   setupLoginModal() {
-    // Если пользователь уже авторизован, не настраиваем модальное окно
-    const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-    if (currentUser) {
-      return;
-    }
     const loginBtn = document.querySelector(".login");
     const modal = document.getElementById("loginModal");
-    const closeBtn = document.querySelector(".close");
-    const loginForm = document.getElementById("loginForm");
-    const authSwitchLink = document.querySelector(".auth-switch-link");
-    const modalTitle = document.getElementById("modalTitle");
-    const submitBtn = document.getElementById("submitBtn");
-    const modalFooterText = document.getElementById("modalFooterText");
+    const closeBtn = modal.querySelector(".close");
+    const loginForm = modal.querySelector("#loginForm");
+    const authSwitchLink = modal.querySelector(".auth-switch-link");
 
-    this.isLoginMode = true;
+    if (!loginBtn || !modal || !loginForm || !authSwitchLink) return;
 
-    // Проверяем, есть ли сохраненный пользователь
-    this.checkLoggedInUser();
+    loginBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      modal.style.display = "block";
+    });
 
-    if (loginBtn && modal) {
-      loginBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.showAuthModal();
-      });
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
 
-      closeBtn.addEventListener("click", () => {
-        modal.style.display = "none";
-      });
+    authSwitchLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.isLoginMode = !this.isLoginMode;
+      modal.querySelector("#modalTitle").textContent = this.isLoginMode ? "Login to account" : "Create account";
+      modal.querySelector("#submitBtn").textContent = this.isLoginMode ? "Login in" : "Sign up";
+    });
 
-      // Закрытие при клике вне окна
-      window.addEventListener("click", (e) => {
-        if (e.target === modal) {
-          modal.style.display = "none";
-        }
-      });
-
-      // Переключение между логином и регистрацией
-      if (authSwitchLink) {
-        authSwitchLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.toggleAuthMode();
-        });
-      }
-
-      // Обработка формы
-      if (loginForm) {
-        loginForm.addEventListener("submit", (e) => {
-          e.preventDefault();
-          if (this.isLoginMode) {
-            this.handleLogin();
-          } else {
-            this.handleSignup();
-          }
-        });
-      }
-    }
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (this.isLoginMode) await this.handleLogin();
+      else await this.handleSignup();
+    });
   }
 
-  toggleAuthMode() {
-    this.isLoginMode = !this.isLoginMode;
-    const modalTitle = document.getElementById("modalTitle");
-    const submitBtn = document.getElementById("submitBtn");
-    const modalFooterText = document.getElementById("modalFooterText");
-    const authSwitchLink = document.querySelector(".auth-switch-link");
-
-    if (this.isLoginMode) {
-      modalTitle.textContent = "Login to account";
-      submitBtn.textContent = "Login in";
-      modalFooterText.innerHTML =
-        'No account? <a href="#" class="auth-switch-link">Sign up</a>';
-    } else {
-      modalTitle.textContent = "Create account";
-      submitBtn.textContent = "Sign up";
-      modalFooterText.innerHTML =
-        'Already have an account? <a href="#" class="auth-switch-link">Login in</a>';
-    }
-
-    // Обновляем обработчик для новой ссылки
-    const newAuthSwitchLink = document.querySelector(".auth-switch-link");
-    if (newAuthSwitchLink) {
-      newAuthSwitchLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.toggleAuthMode();
-      });
-    }
-  }
-
-  showAuthModal() {
-    const modal = document.getElementById("loginModal");
-    // Сбрасываем форму при открытии
-    document.getElementById("loginForm").reset();
-    modal.style.display = "block";
-  }
-
-  handleLogin() {
+  async handleLogin() {
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
-
-    // Получаем сохраненных пользователей
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-
-    // Ищем пользователя
-    const user = users.find(
-      (u) =>
-        (u.username === username || u.email === username) &&
-        u.password === password
-    );
-
-    if (user) {
-      // Сохраняем информацию о текущем пользователе
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify({
-          username: user.username,
-          email: user.email,
-        })
-      );
-
-      this.updateUIForLoggedInUser(user.email);
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, password })
+      });
+      if (!res.ok) throw new Error("Login failed");
+      const data = await res.json();
       document.getElementById("loginModal").style.display = "none";
-      alert(`Welcome back, ${user.email}!`);
-    } else {
-      alert("Invalid username/email or password");
+      await this.fetchFiles();
+
+      this.showLoggedInUser(data.email);
+    } catch (err) {
+      console.error(err);
+      alert("Invalid username or password");
     }
   }
 
-  handleSignup() {
+  async handleSignup() {
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
+    try {
+      const res = await fetch(`${API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: username, password })
+      });
+      if (!res.ok) throw new Error("Signup failed");
+      const data = await res.json();
+      document.getElementById("loginModal").style.display = "none";
+      await this.fetchFiles();
 
-    // Простая валидация email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const isEmail = emailRegex.test(username);
-
-    if (!isEmail) {
-      alert("Please enter a valid email address");
-      return;
-    }
-
-    if (password.length < 6) {
-      alert("Password must be at least 6 characters long");
-      return;
-    }
-
-    // Получаем существующих пользователей
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-
-    // Проверяем, не занят ли email
-    if (users.find((u) => u.email === username)) {
-      alert("User with this email already exists");
-      return;
-    }
-
-    // Создаем нового пользователя
-    const newUser = {
-      username: username.split("@")[0], // Используем часть до @ как username
-      email: username,
-      password: password,
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-
-    // Автоматически логиним пользователя
-    localStorage.setItem(
-      "currentUser",
-      JSON.stringify({
-        username: newUser.username,
-        email: newUser.email,
-      })
-    );
-
-    this.updateUIForLoggedInUser(newUser.email);
-    document.getElementById("loginModal").style.display = "none";
-    alert(`Account created successfully! Welcome, ${newUser.email}`);
-  }
-
-  checkLoggedInUser() {
-    const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-    if (currentUser) {
-      this.updateUIForLoggedInUser(currentUser.email);
+      this.showLoggedInUser(data.email);
+    } catch (err) {
+      console.error(err);
+      alert("Signup failed");
     }
   }
 
-  updateUIForLoggedInUser(email) {
-    const loginBtn = document.querySelector(".login");
-    if (loginBtn) {
-      // Полностью заменяем содержимое и убираем обработчик клика
-      loginBtn.outerHTML = `
-            <div class="user-info">
-                ${email}
-                <a href="#" class="logout-btn">Logout</a>
-            </div>
-        `;
+  showLoggedInUser(email) {
+    const loginLink = document.querySelector(".login");
+    if (!loginLink) return;
 
-      // Добавляем обработчик для кнопки logout
-      const logoutBtn = document.querySelector(".logout-btn");
-      if (logoutBtn) {
-        logoutBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.handleLogout();
-        });
-      }
-    }
+    loginLink.innerHTML = `Hello, ${email} | <a href="#" id="logoutBtn">Logout</a>`;
+    loginLink.style.cursor = "default";
+
+    const logoutBtn = document.getElementById("logoutBtn");
+    logoutBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+      loginLink.innerHTML = "Login in";
+      loginLink.style.cursor = "pointer";
+    });
   }
 
-  handleLogout() {
-    localStorage.removeItem("currentUser");
-    location.reload(); // Простой способ восстановить исходное состояние
-  }
 }
 
 window.fileListManager = new FileListManager();

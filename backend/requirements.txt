@@ -8,8 +8,9 @@ python-multipart
 python-dotenv
 qrcode
 cryptography
-opencv-python
+numpy
+opencv-python-headless
 face-recognition
 ultralytics
 pytesseract
-numpy
+python-jose[cryptography]

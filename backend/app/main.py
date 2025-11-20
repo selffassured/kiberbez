@@ -1,9 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import upload, download, qr
-from app.cv import face_access, detect_cnd, readmeter, sort_photos
+
+from app.core.db import Base, engine
+from app.cv import detect_cnd, face_access, readmeter, sort_photos
+from app.routes import auth, files, qr
 
 app = FastAPI(title="Secure File Share")
+
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+    print("All tables created")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,16 +21,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Регистрация маршрутов
-app.include_router(upload.router)
-app.include_router(download.router)
 app.include_router(qr.router)
-
-# Новые CV API
 app.include_router(face_access.router)
 app.include_router(detect_cnd.router)
 app.include_router(readmeter.router)
 app.include_router(sort_photos.router)
+app.include_router(auth.router)
+app.include_router(files.router)
+
 
 @app.get("/")
 def root():
