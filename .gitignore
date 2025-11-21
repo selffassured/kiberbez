@@ -1,0 +1,8 @@
+__pycache__
+*.log
+*.zip
+venv/
+backend/app/__pycache__
+*.pyc
+venv
+backend/storage/
