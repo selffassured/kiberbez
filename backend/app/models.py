@@ -14,6 +14,7 @@ class FileModel(Base):
     expiry = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     type = Column(String, nullable=True)
+    face_encoding = Column(LargeBinary, nullable=True)
 
 
 class User(Base):

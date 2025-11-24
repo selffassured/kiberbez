@@ -56,7 +56,7 @@ class FileListManager {
 
   async fetchFiles() {
     try {
-      const res = await fetch(`${API_URL}/files`, {
+      const res = await fetch(`${API_URL}/files/`, {
         credentials: "include"
       });
       if (!res.ok) throw new Error("Failed to fetch files");
@@ -68,11 +68,17 @@ class FileListManager {
     }
   }
 
-  async uploadFiles(fileList) {
+  async uploadFiles(fileList, faceFile = null) {
     const formData = new FormData();
+
     for (const file of fileList) {
       formData.append("files", file);
     }
+
+    if (faceFile) {
+      formData.append("face", faceFile);
+    }
+
     try {
       const res = await fetch(`${API_URL}/files/upload`, {
         method: "POST",
@@ -80,17 +86,36 @@ class FileListManager {
         credentials: "include"
       });
       if (!res.ok) throw new Error("Upload failed");
+
       const data = await res.json();
       this.files = data.files;
       this.renderFiles();
+
     } catch (err) {
       console.error("Upload error:", err);
       alert("Upload failed");
     }
   }
 
+
   async downloadFile(fileToken) {
     try {
+      const selfieBlob = await this.openWebcam();
+
+      const formData = new FormData();
+      formData.append("selfie", selfieBlob);
+
+      const verifyRes = await fetch(`${API_URL}/files/${fileToken}/verify-selfie`, {
+        method: "POST",
+        body: formData,
+        credentials: "include"
+      });
+
+      if (!verifyRes.ok) {
+        alert("Verification failed");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/files/${fileToken}/download`, {
         method: "GET",
         credentials: "include"
@@ -101,25 +126,24 @@ class FileListManager {
       const blob = await res.blob();
 
       const file = this.files.find((f) => f.token === fileToken);
-      if (!file) {
-        console.error("File metadata not found");
-        return;
-      }
+      if (!file) return;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = file.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-  } catch (err) {
-    console.error(err);
-    alert("Download failed");
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error(err);
+      alert("Download failed");
+    }
   }
-}
+
 
   async deleteFile(fileToken) {
     try {
@@ -136,6 +160,48 @@ class FileListManager {
     }
   }
 
+  openWebcam() {
+    return new Promise(async (resolve, reject) => {
+      const modal = document.getElementById("webcamModal");
+      const video = document.getElementById("webcam");
+      const closeBtn = document.getElementById("webcamClose");
+      const takeBtn = document.getElementById("takeSnapshotBtn");
+
+      modal.style.display = "block";
+
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Unable to access webcam");
+        reject(err);
+        return;
+      }
+
+      closeBtn.onclick = () => {
+        modal.style.display = "none";
+        stream.getTracks().forEach(t => t.stop());
+        reject("closed");
+      };
+
+      takeBtn.onclick = () => {
+        const canvas = document.getElementById("snapshotCanvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+
+        canvas.toBlob((blob) => {
+          modal.style.display = "none";
+          stream.getTracks().forEach(t => t.stop());
+          resolve(blob);
+        }, "image/jpeg");
+      };
+    });
+  }
+
+
   onDomReady() {
     this.container = document.getElementById("fileListContainer");
     if (!this.container) this.createContainer();
@@ -148,13 +214,41 @@ class FileListManager {
 
   setupUpload() {
     const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      fileInput.addEventListener("change", async (e) => {
-        await this.uploadFiles(e.target.files);
-        e.target.value = "";
-      });
-    }
+    const faceInput = document.getElementById("face-upload");
+    const uploadBtn = document.getElementById("uploadAllBtn");
+
+    this.filesToUpload = [];
+    this.faceFile = null;
+
+    fileInput.addEventListener("change", (e) => {
+      this.filesToUpload = Array.from(e.target.files);
+      console.log("Выбраны обычные файлы:", this.filesToUpload);
+    });
+
+    faceInput.addEventListener("change", (e) => {
+      this.faceFile = e.target.files[0];
+      console.log("Выбрано фото лица:", this.faceFile);
+    });
+
+    uploadBtn.addEventListener("click", async () => {
+      if (this.filesToUpload.length === 0 && !this.faceFile) {
+        alert("Сначала выберите файлы или фото лица");
+        return;
+      }
+
+      await this.uploadFiles(this.filesToUpload, this.faceFile);
+
+      this.filesToUpload = [];
+      this.faceFile = null;
+
+      fileInput.value = "";
+      faceInput.value = "";
+
+      console.log("Загрузка завершена");
+    });
   }
+
+
 
   setupSearch() {
     const searchInput = document.getElementById("fileSearch");
