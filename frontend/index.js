@@ -335,10 +335,15 @@ class FileListManager {
         <div class="file-actions">
           <button class="download-btn"><img src="img/download.png" width="28"></button>
           <button class="delete-btn"><img src="img/delete.png" width="26"></button>
+          <button class="qr-btn"><img src="img/qr.png" width="26"></button>
         </div>
       `;
       fileElement.querySelector(".download-btn").addEventListener("click", () => this.downloadFile(file.token));
       fileElement.querySelector(".delete-btn").addEventListener("click", () => this.deleteFile(file.token));
+      fileElement.querySelector(".qr-btn").addEventListener("click", () => {
+        this.showQrCode(file.token);
+      });
+
       fileListContent.appendChild(fileElement);
     });
   }
@@ -447,6 +452,37 @@ class FileListManager {
       alert("Signup failed");
     }
   }
+
+  async showQrCode(fileToken) {
+    const modal = document.getElementById("qrModal");
+    const closeBtn = document.getElementById("qrClose");
+    const qrImage = document.getElementById("qrImage");
+
+    try {
+      const res = await fetch(`${API_URL}/files/${fileToken}/qr`, {
+        method: "GET",
+        credentials: "include"
+      });
+
+      if (!res.ok) throw new Error("Unable to load QR");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      qrImage.src = url;
+      modal.style.display = "block";
+
+      closeBtn.onclick = () => {
+        modal.style.display = "none";
+        URL.revokeObjectURL(url);
+      };
+
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка при загрузке QR-кода");
+    }
+  }
+
 
   showLoggedInUser(email) {
     const loginLink = document.querySelector(".login");

@@ -2,11 +2,13 @@ import os
 import secrets
 import time
 from datetime import datetime, timedelta
+from io import BytesIO
 from mimetypes import guess_type
 from urllib.parse import quote
 
 import face_recognition
 import numpy as np
+import qrcode
 from app.config import STORAGE_DIR
 from app.core.crypto import (
     decrypt_bytes,
@@ -191,3 +193,20 @@ async def verify_selfie(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Selfie verification failed: {e}")
+
+@router.get("/{token}/info")
+async def file_info(token: str, db: Session = Depends(get_db)):
+    file = db.query(FileModel).filter(FileModel.token == token).first()
+    return {
+        "filename": file.filename,
+        "size": file.size
+    }
+
+@router.get("/{token}/qr")
+async def get_qr(token: str):
+    url = f"http://localhost:3000/secure-download/{token}"
+    img = qrcode.make(url)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.read(), media_type="image/png")

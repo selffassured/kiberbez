@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Secure File Download</title>
+  <link rel="stylesheet" href="/main.css">
+</head>
+<body>
+
+<div class="download-box">
+  <h2>Безопасное скачивание файла</h2>
+
+  <div id="fileInfo" class="file-info">Загрузка информации...</div>
+
+  <button id="secureDownloadBtn" class="download-button" style="margin-top:25px;">
+    Скачать файл
+  </button>
+</div>
+
+<div id="webcamModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:500px;">
+    <span class="close" id="webcamClose">&times;</span>
+    <h2>Подтвердите личность — сделайте селфи</h2>
+
+    <video id="webcam" autoplay playsinline style="width:100%; border-radius:10px;"></video>
+    <canvas id="snapshotCanvas" style="display:none;"></canvas>
+
+    <button id="takeSnapshotBtn" class="download-button" style="margin-top:15px;">
+      Сделать фото
+    </button>
+  </div>
+</div>
+
+<script>
+const API_URL = "/api";
+
+const token = window.location.pathname.split("/").pop();
+
+const fileInfoDiv = document.getElementById("fileInfo");
+const downloadBtn = document.getElementById("secureDownloadBtn");
+
+const webcamModal = document.getElementById("webcamModal");
+const webcamVideo = document.getElementById("webcam");
+const webcamClose = document.getElementById("webcamClose");
+const takeSnapshotBtn = document.getElementById("takeSnapshotBtn");
+
+async function loadFileInfo() {
+    try {
+        const res = await fetch(`${API_URL}/files/${token}/info`, {
+            credentials: "include"
+        });
+        if (!res.ok) throw new Error("Cannot load info");
+
+        const data = await res.json();
+        fileInfoDiv.innerHTML = `
+            📄 <b>${data.filename}</b><br>
+            Размер: ${formatFileSize(data.size)}
+        `;
+    } catch (e) {
+        fileInfoDiv.textContent = "Ошибка загрузки файла";
+    }
+}
+
+function formatFileSize(bytes) {
+    const sizes = ["B","KB","MB","GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(1) + " " + sizes[i];
+}
+
+async function openWebcam() {
+    return new Promise(async (resolve, reject) => {
+        webcamModal.style.display = "block";
+
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video:true });
+            webcamVideo.srcObject = stream;
+        } catch (err) {
+            alert("Нет доступа к камере");
+            reject(err);
+            return;
+        }
+
+        webcamClose.onclick = () => {
+            webcamModal.style.display = "none";
+            stream.getTracks().forEach(t => t.stop());
+            reject("closed");
+        };
+
+        takeSnapshotBtn.onclick = () => {
+            const canvas = document.getElementById("snapshotCanvas");
+            canvas.width = webcamVideo.videoWidth;
+            canvas.height = webcamVideo.videoHeight;
+            canvas.getContext("2d").drawImage(webcamVideo,0,0);
+
+            canvas.toBlob(blob => {
+                webcamModal.style.display = "none";
+                stream.getTracks().forEach(t => t.stop());
+                resolve(blob);
+            }, "image/jpeg");
+        };
+    });
+}
+
+async function secureDownload() {
+    try {
+        const selfie = await openWebcam();
+
+        const formData = new FormData();
+        formData.append("selfie", selfie);
+
+        const verify = await fetch(`${API_URL}/files/${token}/verify-selfie`, {
+            method: "POST",
+            body: formData,
+            credentials: "include"
+        });
+
+        if (!verify.ok) {
+            alert("Личность не подтверждена");
+            return;
+        }
+
+        const res = await fetch(`${API_URL}/files/${token}/download`, {
+            method: "GET",
+            credentials: "include"
+        });
+        if (!res.ok) throw new Error("Download error");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "file";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка скачивания");
+    }
+}
+
+downloadBtn.onclick = secureDownload;
+loadFileInfo();
+</script>
+
+</body>
+</html>

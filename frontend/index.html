@@ -1,21 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>victim file</title>
     <link rel="stylesheet" href="main.css" />
   </head>
+  <div id="qrModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:350px; text-align:center;">
+      <span class="close" id="qrClose">&times;</span>
+      <h2>QR-код для скачивания</h2>
+      <img id="qrImage" style="width:250px; height:250px; margin-top:15px;" />
+    </div>
+  </div>
   <div id="webcamModal" class="modal" style="display:none;">
     <div class="modal-content" style="max-width:500px;">
       <span class="close" id="webcamClose">&times;</span>
-      <h2>Make a selfie to continue</h2>
+      <h2>Сделайте селфи для продолжения</h2>
 
       <video id="webcam" autoplay playsinline style="width:100%; border-radius:10px;"></video>
       <canvas id="snapshotCanvas" style="display:none;"></canvas>
 
       <button id="takeSnapshotBtn" class="download-button" style="margin-top:15px;">
-        Take a photo
+        Сделать фото
       </button>
     </div>
   </div>
@@ -33,76 +40,76 @@
               type="search"
               id="fileSearch"
               class="search-field"
-              placeholder="Search files"
+              placeholder="Поиск файлов"
             />
           </div>
         </nav>
-        <a href="#" class="login">Login in</a>
+        <a href="#" class="login">Войти</a>
         <!-- добавить ссылку -->
       </header>
     </div>
 
     <main class="content-container">
       <div class="content-box">
-        <h2>Main page</h2>
+        <h2>Главная страница</h2>
 
         <div class="upload-container">
           <input type="file" id="file-upload" class="file-input" multiple />
           <label for="file-upload" class="download-button">
-            Select files
+            Выбрать файлы
           </label>
 
           <input type="file" id="face-upload" class="file-input" accept="image/*" />
           <label for="face-upload" class="download-button">
-            Select face photo
+            Выбрать фото лица
           </label>
         </div>
         <button id="uploadAllBtn" class="download-button">
-          Upload files
+          Загрузить файлы
         </button>
 
         <div class="file-list">
           <div class="file-item1 category-trigger active" data-category="all">
             <a href="#" class="file-item1">
               <img src="img/all files.png" class="file-image" />
-              <span class="file-name" title="All files">All files</span>
+              <span class="file-name" title="Все файлы">Все файлы</span>
             </a>
           </div>
           <div class="file-item1 category-trigger" data-category="documents">
             <a href="#" class="file-item1">
               <img src="img/documets.png" class="file-image" />
-              <span class="file-name" title="documents">documents</span>
+              <span class="file-name" title="Документы">Документы</span>
             </a>
           </div>
           <div class="file-item1 category-trigger" data-category="images">
             <a href="#" class="file-item1">
               <img src="img/photo.png" class="file-image" />
-              <span class="file-name" title="images">images</span>
+              <span class="file-name" title="Изображения">Изображения</span>
             </a>
           </div>
           <div class="file-item1 category-trigger" data-category="videos">
             <a href="#" class="file-item1">
               <img src="img/video.png" class="file-image" />
-              <span class="file-name" title="videos">videos</span>
+              <span class="file-name" title="Видео">Видео</span>
             </a>
           </div>
         </div>
         <div class="file-box" id="fileListContainer">
-          <h3 class="file-show">File list ▸</h3>
+          <h3 class="file-show">Список файлов ▸</h3>
         </div>
       </div>
     </main>
     <div id="loginModal" class="modal">
       <div class="modal-content">
         <span class="close">&times;</span>
-        <h2 id="modalTitle">Login to account</h2>
+        <h2 id="modalTitle">Вход в аккаунт</h2>
         <form id="loginForm">
           <div class="form-group">
             <input
               type="text"
               id="username"
               name="username"
-              placeholder="Username or Email"
+              placeholder="Имя пользователя или Email"
               required
             />
           </div>
@@ -111,23 +118,20 @@
               type="password"
               id="password"
               name="password"
-              placeholder="Password"
+              placeholder="Пароль"
               required
             />
           </div>
           <button type="submit" class="login-submit-btn" id="submitBtn">
-            Login in
+            Войти
           </button>
         </form>
         <div class="modal-footer">
           <p id="modalFooterText">
-            No account? <a href="#" class="auth-switch-link">Sign up</a>
+            Нет аккаунта? <a href="#" class="auth-switch-link">Зарегистрироваться</a>
           </p>
         </div>
       </div>
     </div>
   </body>
 </html>
-
-
-<script type="module" src="./login.js"></script>

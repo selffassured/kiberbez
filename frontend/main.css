@@ -103,7 +103,7 @@ img {
   z-index: 1;
   position: fixed;
   height: 715px;
-  width: 1150px;
+  width: 1200px;
 }
 
 .content-box h2 {
@@ -131,17 +131,14 @@ img {
 }
 
 .file-item1 {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.05) !important;
-  border-radius: 8px;
-  border: 0px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
-  width: 100%;
-  max-width: 170px;
-
+    width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 12px 15px;
   text-decoration: none;
   color: inherit;
   cursor: pointer;
@@ -167,7 +164,7 @@ img {
   border-radius: 6px;
   font-size: 24px;
   display: flex;
-  width: 169px;
+  width: 200px;
   margin-bottom: 15px;
   text-align: center;
   transition: all 0.2s ease;
@@ -206,7 +203,8 @@ img {
 }
 
 .download-btn,
-.delete-btn {
+.delete-btn,
+.qr-btn {
   padding: 4px 8px;
   border: none;
   border-radius: 4px;
@@ -239,6 +237,36 @@ img {
 
 .download-btn:hover {
   background: rgba(76, 175, 80, 0.1);
+}
+
+.download-box {
+    width: 420px;
+    margin: 80px auto;
+    padding: 25px;
+    border-radius: 12px;
+    background: rgba(76, 175, 79, 0.556);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    text-align: center;
+}
+.file-info {
+    margin-top: 10px;
+    font-size: 18px;
+    font-weight: 600;
+}
+.modal { display:none; }
+
+.qr-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #329ee0;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.delete-btn:hover {
+  background: rgba(255, 107, 107, 0.1);
 }
 
 .delete-btn {
